@@ -4,11 +4,10 @@ import os
 import numpy as np
 
 with tf.Session(graph=tf.Graph()) as sess:
-    model_version = 1
+    model_version = 3
     export_path = os.path.join(".", str(model_version))
 
-    tf.saved_model.loader.load(sess, [tf.saved_model.tag_constants.SERVING], export_path)
-    sess.run(tf.global_variables_initializer())
+    tf.saved_model.loader.load(sess, [tf.saved_model.tag_constants.SERVING], "4/model.pb")
 
     input_a = sess.graph.get_operation_by_name('a').outputs[0]
     input_b = sess.graph.get_operation_by_name('b').outputs[0]
@@ -28,3 +27,4 @@ with tf.Session(graph=tf.Graph()) as sess:
 
     c = sess.run(output_c, feed_dict=feed_dict)
     print(c)
+    print("trainable:", tf.trainable_variables())
