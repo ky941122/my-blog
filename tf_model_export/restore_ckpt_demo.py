@@ -1,13 +1,11 @@
 #coding=utf-8
 import tensorflow as tf
 import os
-import numpy as np
 
-with tf.Session(graph=tf.Graph()) as sess:
-    model_version = 1
-    export_path = os.path.join("./model", str(model_version))
-
-    tf.saved_model.loader.load(sess, [tf.saved_model.tag_constants.SERVING], export_path)
+sess = tf.Session()
+with sess.as_default():
+    saver = tf.train.import_meta_graph('./model/ckpt/model.meta')
+    saver.restore(sess, tf.train.latest_checkpoint('./model/ckpt'))
 
     input_a = sess.graph.get_operation_by_name('a').outputs[0]
     input_b = sess.graph.get_operation_by_name('b').outputs[0]
@@ -15,14 +13,14 @@ with tf.Session(graph=tf.Graph()) as sess:
 
     a = np.array(
         [
-            [1,2,3],
-            [4,5,6]
+            [1, 2, 3],
+            [4, 5, 6]
         ]
     )
     b = np.array(
         [
-            [6,7,8],
-            [7,8,9]
+            [6, 7, 8],
+            [7, 8, 9]
         ]
     )
     feed_dict = {
@@ -32,3 +30,5 @@ with tf.Session(graph=tf.Graph()) as sess:
 
     c = sess.run(output_c, feed_dict=feed_dict)
     print(c)
+
+

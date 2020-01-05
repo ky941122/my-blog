@@ -38,7 +38,7 @@ import numpy as np
 # print("#"*50)
 
 
-model_filename = "./4/model.pb"
+model_filename = "./model/4/model.pb"
 with tf.gfile.FastGFile(model_filename, 'rb') as f:
     graph_def = tf.GraphDef()
     graph_def.ParseFromString(f.read())
@@ -52,16 +52,10 @@ with tf.Session() as sess:
     output_c = sess.graph.get_tensor_by_name('import/c:0')
 
     a = np.array(
-        [
-            [1,2,3],
-            [4,5,6]
-        ]
+        [1,2,3,4]
     )
     b = np.array(
-        [
-            [6,7,8],
-            [7,8,9]
-        ]
+       [5,6,7,8]
     )
     feed_dict = {
         input_a: a,

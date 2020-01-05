@@ -10,7 +10,7 @@ with sess.as_default():
     c = tf.subtract(a, b, name="c")
 
     model_version = 1
-    export_path = os.path.join(".", str(model_version))
+    export_path = os.path.join("./model", str(model_version))
     if os.path.exists(export_path):
         shutil.rmtree(export_path)
 
