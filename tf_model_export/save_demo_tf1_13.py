@@ -13,6 +13,8 @@ with sess.as_default():
 
     sess.run(tf.global_variables_initializer())
 
+    tf.train.write_graph(sess.graph_def, "./model/graphDef", "model.pbtxt", as_text=True)
+
     model_version = 2
     export_path = os.path.join("./model", str(model_version))
     if os.path.exists(export_path):

@@ -7,7 +7,7 @@ saver = tf.train.Saver()
 saver.save()
 ```
 
-运行之后就可以得到四个文件：checkpoint、model.ckpt.data、model.ckpt.index、model.ckpt.meta，分别保存了checkpoint文件信息、参数值信息、参数名称信息以及图结构信息。
+运行之后就可以得到四个文件：checkpoint、model.ckpt.data、model.ckpt.index、model.ckpt.meta，分别保存了已导出的checkpoint文件列表信息、网络参数值信息、参数名称索引信息以及图结构信息。
 
 使用这种方式进行模型的保存读取对于实验过程来说完全足够了，但若是我们实验得到了一个不错的模型，现在想要将它部署上线，checkpoint就显得不够灵活了。这里主要存在着这样几个缺点：首先最明显的，checkpoint文件只能用于python环境下的tensorflow中；其次，对于tensorflow版本也有一定的要求，版本号跨度太大的框架之间无法互相读取模型（比如旧版本中一些op被弃用的情况）。
 
@@ -306,6 +306,210 @@ public class Main {
 下面上例子，首先看下保存GraphDef的例子：
 
 ```angular2
+#coding=utf-8
+import tensorflow as tf
 
+sess = tf.Session()
+with sess.as_default():
+
+    a = tf.placeholder(shape=[None], dtype=tf.float32, name="a")
+    b = tf.placeholder(shape=[None], dtype=tf.float32, name="b")
+    c = tf.subtract(a, b, name="c")
+
+    output_graph_def = tf.graph_util.convert_variables_to_constants(sess, sess.graph_def, output_node_names=["c"])
+    with tf.gfile.GFile("./model/graphDef/model.pb", "wb") as model_f:
+        model_f.write(output_graph_def.SerializeToString())
 ```
+
+代码十分清晰明了，通过`sess.graph_def`获得当前session所在图的GraphDef，然后调用`tf.graph_util.convert_variables_to_constants`将变量转换为常数，最后序列化后写入文件。这里唯一要注意的一点是，不像保存MetaGraphDef的时候，tensorflow会自动将整张图保存下来，保存GraphDef需要我们手动输入对于现有模型我们想要获得的输出，tensorflow根据这个输出，倒推出它所依赖的子图，然后将这个子图保存下来。
+上面的小例子里，我们想要得到的输出是c节点，因此在`tf.graph_util.convert_variables_to_constants`函数的`output_node_names`参数中传入c，注意要传节点的名称，且要使用列表的形式，这是因为如果你的模型有多个输出，那就可以一并列出在列表中。大家可以试试，如果在`output_node_names`参数里传入的是节点a，那么这个GraphDef里就只会保存一个节点a，这是因为想要获得节点a，并不需要依赖于其他别的节点。
+
+除了上面这个导出为.pb格式的方式外，保存图的GraphDef还有另外一种导出为.pbtxt的方式。
+
+```angular2
+#coding=utf-8
+import tensorflow as tf
+
+sess = tf.Session()
+with sess.as_default():
+
+    a = tf.placeholder(shape=[None], dtype=tf.float32, name="a")
+    b = tf.placeholder(shape=[None], dtype=tf.float32, name="b")
+    c = tf.subtract(a, b, name="c")
+
+    tf.train.write_graph(sess.graph_def, "./model/graphDef", "model.pbtxt", as_text=True)
+```
+
+这里值得一提的是，本文一直出现的.pb文件扩展名，其实是Protocol Buffer（protobuf）的简写，这是谷歌开源的一种数据存储语言，tensorflow中保存模型使用的都是这种存储语言，无论是.ckpt的checkpoint，还是.pb和.pbtxt的MetaGraphDef或GraphDef。关于Protocol Buffer，本文不会展开，有兴趣了解的小伙伴可以自行查阅资料。唯一需要说明的是，.pb与.pbtxt是protobuf的两种储存形式，前者是以二进制形式存储数据，因此获得的文件在大小上会有显著的降低；后者是以文本形式存储，大小上相对前者会有增加，但好处是存储的文件是人类可阅读的形式，在某些场合下有利于进行debug。
+我们可以打开使用`tf.train.write_graph`api保存的`model.pbtxt`文件进行查看。（需要注意的是，以何种形式保存protobuf并不是根据你所声明的文件名后缀来区分的，而是根据`tf.train.write_graph`函数中的`as_text`参数来决定的，这个参数默认为True，也就是以文本形式保存。但是一个清晰明了的文件名后缀有时候能避免很多不必要的麻烦）。
+
+```angular2
+node {
+  name: "a"
+  op: "Placeholder"
+  attr {
+    key: "dtype"
+    value {
+      type: DT_FLOAT
+    }
+  }
+  attr {
+    key: "shape"
+    value {
+      shape {
+        dim {
+          size: -1
+        }
+      }
+    }
+  }
+}
+```
+
+这是`model.pbtxt`文件中对于我们上面定义的图结构中的a节点所保存的信息，可以看到对于该节点的每条信息我们都能轻松的读懂。但由于保存GraphDef的一个最主要的目的就是其文件大小优势，因此会使用文本形式存储的场合其实不多。
+
+接下来展示一下如何读取上面保存的`model.pb`与`model.pbtxt`文件。
+
+首先是读取二进制形式的文件：
+
+```angular2
+#coding=utf-8
+import tensorflow as tf
+import numpy as np
+
+model_filename = "./model/graphDef/model.pb"
+with tf.gfile.FastGFile(model_filename, 'rb') as f:
+    graph_def = tf.GraphDef()
+    graph_def.ParseFromString(f.read())
+
+tf.import_graph_def(graph_def, name='')
+with tf.Session() as sess:
+    input_a = sess.graph.get_tensor_by_name('a:0')
+    input_b = sess.graph.get_tensor_by_name('b:0')
+    output_c = sess.graph.get_tensor_by_name('c:0')
+
+    a = np.array(
+        [1,2,3,4]
+    )
+    b = np.array(
+       [5,6,7,8]
+    )
+    feed_dict = {
+        input_a: a,
+        input_b: b
+    }
+
+    c = sess.run(output_c, feed_dict=feed_dict)
+```
+
+然后是读取文本形式的文件：
+
+```angular2
+#coding=utf-8
+import tensorflow as tf
+import numpy as np
+from google.protobuf import text_format
+
+model_filename = "./model/3/model.pbtxt"
+with tf.gfile.FastGFile(model_filename, 'rb') as f:
+    graph_def = tf.GraphDef()
+    file_content = f.read()
+    text_format.Merge(file_content, graph_def)
+
+tf.import_graph_def(graph_def, name='')
+with tf.Session() as sess:
+    input_a = sess.graph.get_tensor_by_name('a:0')
+    input_b = sess.graph.get_tensor_by_name('b:0')
+    output_c = sess.graph.get_tensor_by_name('c:0')
+
+    a = np.array(
+        [1,2,3,4]
+    )
+    b = np.array(
+       [5,6,7,8]
+    )
+    feed_dict = {
+        input_a: a,
+        input_b: b
+    }
+
+    c = sess.run(output_c, feed_dict=feed_dict)
+```
+
+上面两段导入模型的代码也很简洁，只有一个需要注意的地方，在使用`tf.import_graph_def`函数将从文件中获取的GraphDef信息导入图中时，函数有一个参数`name`，默认值是"import"。这个参数的作用是给导入的图中所有节点的名称加上一个前缀，也就是用一个名空间方便的区分出导入的节点。
+如果不传入这个参数，那么图中所有节点的名字都会获得一个前缀"import/"，在不注意的情况下很容易出现获得不到对应名字节点的错误。所以方便起见，我一般会传入`name=""`来消除这个额外添加的名空间。
+
+这里额外插入一句，由于上面介绍的所有方法，在载入保存好的图后，都需要通过op的名称来获取到图中定义好的节点，因此有时候你会需要查看图里有哪些节点名称。我常用的方法是通过`tf.get_default_graph().as_graph_def().node`来获取所有节点的集和，并对集和中的每个元素查看其name属性，这就是所有节点的名称。实现类似功能的方法还有很多，大家可以选用自己顺手的。
+
+上面提到过，使用MetaGraphDef可以恢复出一个可以重新训练的模型，但是使用GraphDef恢复出的模型却不可以。这是因为GraphDef中将所有的变量都固化成为了常数。这里我们简单印证下这个结论，我们可以在上面通过GraphDef恢复出的图结构下，调用`tf.global_variables`函数，打印出结果会发现返回的是一个空集合。但是在通过MetaGraphDef恢复出的图结构下调用该函数，就能看到图中所定义的所有变量。
+
+这一节最后照例贴一下在java中载入并使用保存好的GraphDef数据。由于我并未通过java调用过以文本形式保存的GraphDef文件，这里就不多做展示以免发生误导，有这方面需要的可以自行查阅资料。
+
+首先还是像上一节一样在maven中添加tensorflow依赖，然后把刚刚导出的包含GraphDef信息的model.pb文件放到项目的resources文件夹下。
+
+```angular2
+import org.tensorflow.Graph;
+import org.tensorflow.Session;
+import org.tensorflow.Tensor;
+import java.nio.file.Path;
+import java.nio.file.Files;
+import java.io.IOException;
+import java.nio.file.Paths;
+
+public class Main {
+    private static byte[] readAllBytesOrExit(Path path) {
+        try {
+            return Files.readAllBytes(path);
+        } catch (IOException e) {
+            System.err.println("Failed to read [" + path + "]: "
+                    + e.getMessage());
+            System.exit(1);
+        }
+        return null;
+    }
+
+    public static void main(String[] args){
+        byte[] graphDef = readAllBytesOrExit(Paths.get("F:\\work\\tf_test\\src\\main\\resources", "model.pb"));
+        Graph g = new Graph();
+        g.importGraphDef(graphDef);
+        Session sess = new Session(g);
+        float[] a = {1, 2, 3, 4, 5};
+        float[] b = {4, 5, 6, 7, 8};
+
+        Tensor input_a = Tensor.create(a);
+        Tensor input_b = Tensor.create(b);
+        Tensor<Float> result = sess.runner()
+                .feed("a", input_a)
+                .feed("b", input_b)
+                .fetch("c")
+                .run()
+                .get(0)
+                .expect(Float.class);
+
+        long[] rshape = result.shape();
+        int batchSize = (int) rshape[0];
+        float[] output_c = new float[batchSize];
+        output_c = result.copyTo(output_c);
+
+        for (float x: output_c) {
+            System.out.print(x);
+            System.out.print("\t");
+        }
+    }
+}
+```
+
+与第一节的java例子中tensorflow可以自动读取模型文件略有不同的是，此时我们需要一个辅助函数来帮助我们从文件中读取出内容并存在一个byte数组里，然后通过这个byte数组来恢复我们保存的图结构。其余部分都与python中调用十分一致了。
+
+### **3、使用tf.train.Saver保存checkpoint**
+
+关于使用checkpoint进行的模型保存与载入，相信所有使用过tensorflow的人都有所了解，否则恐怕连简单的模型测试都无法完成。因此，这一节，只简单说下checkpoint与使用tf.SavedModelBuilder导出的MetaGraphDef的区别。
+
+如果你仔细观察第一节中我们通过tf.SavedModelBuilder导出的模型文件夹中的文件，你会发现，在`variables`文件夹下，存在两个文件`variables.data`和`variables.index`（当然，这里指的是包括一个全连接层的例子。简单的减法模型例子导出的`variables`文件夹是空的）。你或许会觉得这两个文件看起来很熟悉，这是因为这两个文件的命名方式与使用tf.train.Saver导出的checkpoint中的`model.data`与`model.index`十分类似。事实上，这些文件里保存的东西也是差不多的，分别都是tensor的索引以及网络权值。
+再来看看SavedModelBuilder导出的与`variables`文件夹位于同一级的`saved_model.pb`，上面不止一次提到了，里面保存的是图的MetaGraphDef，而checkpoint中的`model.meta`文件里，保存的也是MetaGraphDef。这么看来，似乎除了保存了checkpoint文件列表信息的`checkpoint`文件外（这句话看起来似乎有点绕口，前一个checkpoint指这一类文件，后一个checkpoint特指名字为`checkpoint`的那个checkpoint文件），每次我们使用tf.train.Saver保存checkpoint都会多出的三个文件都能与tf.SavedModelBuilder保存的文件相对应上，那他们之间到底有啥区别呢？
+
+在我看来，区别主要可以分为两点：
+
+首先，checkpoint文件主要是用于实验过程中使用的，因此是图结构与网络权重相分离的几个文件。你可以在载入权重时，通过重新定义网络结构，只载入部分网络权值，然后在后面接上与下游任务适配的其他网络结构继续训练。这在图像处理与近期的自然语言处理中频繁使用的pretrain-finetune两阶段训练中十分常见。
+也可以不重新定义网络，而是直接通过`model.meta`文件直接恢复整个图结构，这在第一节中已经举过例子。但是如果你仔细观察第一节中的例子就会发现。这种方式的模型载入其实也是分成两步的。首先通过`tf.train.import_meta_graph`MetaGraphDef恢复网络结构，再通过`saver.restore`来载入网络权值。如果不载入网络权值的话，网络中的参数仍然是随机初始化的。这其实就是把手动定义网络结构这个步骤给简化了而已，仍然充分体现了结构与权值分离的思想。
 
