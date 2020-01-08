@@ -519,4 +519,4 @@ public class Main {
 
 其次，也是我觉得最重要的一个区别，checkpoint文件只能用于python语言下使用，无法使用其他语言进行调用，更无法配合tf serving进行模型部署。同样的一个深度网络模型，在java中进行inference的速度远远快于在python中进行，而使用tf serving部署的模型进行inference的速度还要更快一些。
 
-以上就是tensorflow中模型导出导入的几个方法与例子。
+**以上就是tensorflow中模型导出导入的几个方法与例子。**
