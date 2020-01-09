@@ -2,7 +2,7 @@
 
 相信使用过tensorflow的人都接触过它的模型保存功能，这在我们日常实验中经常用到的：使用预训练模型、测试已有模型以及继续训练现有模型等场景中都是必备的技巧。在工作学习中的大多数时候我们使用的保存模型的api都是：
 
-```angular2
+```python
 saver = tf.train.Saver()
 saver.save()
 ```
@@ -29,7 +29,7 @@ saver.save()
 
 接着上例子：
 
-```angular2
+```python
 #coding=utf-8
 import tensorflow as tf
 import os
@@ -72,7 +72,7 @@ with sess.as_default():
 
 上面的代码例子虽说只做了简单的tensor之间的减法，但保存模型的代码却比保存为checkpoint形式要复杂的多。如果嫌这种保存方式过于繁琐，tensorflow还提供了一个精简模式的保存函数，省略了其中大部分配置，写法如下：
 
-```angular2
+```python
 #coding=utf-8
 import tensorflow as tf
 import os
@@ -109,7 +109,7 @@ with sess.as_default():
 
 在接着讲如何载入刚才导出的模型之前，再演示一下使用saved_model保存和恢复模型的好处之一：不受tensorflow版本限制。看下面这段代码例子，这段代码使用的是tf-1.13.1完成的：
 
-```angular2
+```python
 #coding=utf-8
 import tensorflow as tf
 import os
@@ -143,7 +143,7 @@ with sess.as_default():
 在这段代码里，我们使用到了tf.keras作为网络的一部分。这在做实验的过程中是很常见的，keras模块中的高级抽象层结构能让我们更加轻松快速的搭建模型。但是，假如你现在训练好了一个不错的模型准备上线，但是线上机器的tf版本却是古老的tf-1.2，这时候若是采用我们平时在实验过程中经常使用的：重新定义一遍网络结构再使用tf.train.Saver来载入checkpoint的方式就行不通了。
 因为在tf-1.2中还没有引入tf.keras这个模块，因此在重新定义网络的过程中，代码在`temp2 = tf.keras.layers.Dense(units=16)(temp1)`这一行的时候就会报错找不到tf.keras模块，然后退出。现在我们来看一下使用saved_model载入上面示例中保存的模型的方法：
 
-```angular2
+```python
 #coding=utf-8
 import tensorflow as tf
 import os
@@ -187,7 +187,7 @@ with tf.Session(graph=tf.Graph()) as sess:
 
 第一个方法，是使用`tf.train.Saver`保存checkpoint后的meta文件进行载入。以meta结尾的checkpoint文件中保存了和使用`tf.saved_model`获得的`saved_model.pb`中同样的MetaGraphDef数据，因此同样可以直接还原出模型图结构。具体用法如下：
 
-```angular2
+```python
 #coding=utf-8
 import tensorflow as tf
 import os
@@ -205,7 +205,7 @@ with sess.as_default():
     saver.save(sess, os.path.join("./model", "ckpt/model"))
 ```
 
-```angular2
+```python
 sess = tf.Session()
 with sess.as_default():
     saver = tf.train.import_meta_graph('./model/ckpt/model.meta')
@@ -245,7 +245,7 @@ with sess.as_default():
 
 首先，新建一个maven项目，并在`pom.xml`配置文件中添加tensorflow依赖：
 
-```angular2
+```xml
 <dependency>
   <groupId>org.tensorflow</groupId>
   <artifactId>tensorflow</artifactId>
@@ -307,7 +307,7 @@ public class Main {
 
 下面上例子，首先看下保存GraphDef的例子：
 
-```angular2
+```python
 #coding=utf-8
 import tensorflow as tf
 
@@ -328,7 +328,7 @@ with sess.as_default():
 
 除了上面这个导出为.pb格式的方式外，保存图的GraphDef还有另外一种导出为.pbtxt的方式。
 
-```angular2
+```python
 #coding=utf-8
 import tensorflow as tf
 
@@ -374,7 +374,7 @@ node {
 
 首先是读取二进制形式的文件：
 
-```angular2
+```python
 #coding=utf-8
 import tensorflow as tf
 import numpy as np
@@ -406,7 +406,7 @@ with tf.Session() as sess:
 
 然后是读取文本形式的文件：
 
-```angular2
+```python
 #coding=utf-8
 import tensorflow as tf
 import numpy as np
